@@ -55,18 +55,18 @@ if __name__ == '__main__':
 	# python train.py --dataroot /.path_to_your_data --learn_residual --resize_or_crop crop --fineSize CROP_SIZE (we used 256)
 
 	opt = TrainOptions().parse()
-	opt.dataroot = 'D:\Photos\TrainingData\BlurredSharp\combined'
+	# opt.dataroot = 'D:\Photos\TrainingData\BlurredSharp\combined'
 	opt.learn_residual = True
 	opt.resize_or_crop = "crop"
 	opt.fineSize = 256
-	opt.gan_type = "gan"
+	opt.gan_type = "wgan-gp"
 	# opt.which_model_netG = "unet_256"
 
 	# default = 5000
 	opt.save_latest_freq = 100
 
 	# default = 100
-	opt.print_freq = 20
+	opt.print_freq = 10
 
 	data_loader = CreateDataLoader(opt)
 	model = create_model(opt)

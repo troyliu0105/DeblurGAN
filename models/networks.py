@@ -53,6 +53,9 @@ def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch', use_dropo
     elif which_model_netG == 'unet_256':
         netG = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout,
                              gpu_ids=gpu_ids, use_parallel=use_parallel, learn_residual=learn_residual)
+    elif which_model_netG == 'res2net_9blocks':
+        netG = Res2netGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9,
+                               gpu_ids=gpu_ids, use_parallel=use_parallel, learn_residual=learn_residual)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % which_model_netG)
     if len(gpu_ids) > 0:
@@ -288,6 +291,148 @@ class ResnetBlock(nn.Module):
 	def forward(self, x):
 		out = x + self.conv_block(x)
 		return out
+
+
+class Res2netGenerator(nn.Module):
+    def __init__(
+            self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False,
+            n_blocks=6, gpu_ids=[], use_parallel=True, learn_residual=False, padding_type='reflect'):
+        assert (n_blocks >= 0)
+        super(Res2netGenerator, self).__init__()
+        self.input_nc = input_nc
+        self.output_nc = output_nc
+        self.ngf = ngf
+        self.gpu_ids = gpu_ids
+        self.use_parallel = use_parallel
+        self.learn_residual = learn_residual
+
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+
+        model = [
+            nn.ReflectionPad2d(3),
+            nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
+            norm_layer(ngf),
+            nn.ReLU(True)
+        ]
+
+        model += [
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1, bias=use_bias),
+            norm_layer(128),
+            nn.ReLU(True),
+
+            nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1, bias=use_bias),
+            norm_layer(256),
+            nn.ReLU(True)
+        ]
+
+        # 中间的残差网络
+        # mult = 2**n_downsampling
+        for i in range(n_blocks):
+            model += [
+                Res2NetBlock(256, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias, scale=1)
+            ]
+        model += [
+            nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, padding=1, output_padding=1, bias=use_bias),
+            norm_layer(128),
+            nn.ReLU(True),
+
+            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1, bias=use_bias),
+            norm_layer(64),
+            nn.ReLU(True),
+        ]
+
+        model += [
+            nn.ReflectionPad2d(3),
+            nn.Conv2d(64, output_nc, kernel_size=7, padding=0),
+            nn.Tanh()
+        ]
+
+        self.model = nn.Sequential(*model)
+
+    def forward(self, input):
+        if self.gpu_ids and isinstance(input.data, torch.cuda.FloatTensor) and self.use_parallel:
+            output = nn.parallel.data_parallel(self.model, input, self.gpu_ids)
+        else:
+            output = self.model(input)
+        if self.learn_residual:
+            # output = input + output
+            output = torch.clamp(input + output, min=-1, max=1)
+        return output
+
+
+class Res2NetBlock(nn.Module):
+    def __init__(self, planes, use_dropout, use_bias, scale=1, stride=1, groups=1, norm_layer=None, padding_type=None):
+        super(Res2NetBlock, self).__init__()
+
+        self.use_bias = use_bias
+        self.use_dropout = use_dropout
+        self.padding_type = padding_type
+        self.relu = nn.ReLU(True)
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+
+        self.scale = scale
+        ch_per_sub = planes // self.scale
+        ch_res = planes % self.scale
+
+        # res2net
+        self.chunks = [ch_per_sub * i + ch_res for i in range(1, scale + 1)]
+        self.res2net_conv_blocks = self.get_sub_convs(ch_per_sub, norm_layer, stride, groups, use_bias, padding_type)
+
+        try:
+            pre_blocks = conv3x3_padding(planes, planes, padding=padding_type) + [norm_layer(planes), nn.ReLU(True)] \
+                         + [nn.Dropout(0.5)] if use_dropout else []
+            post_blocks = conv3x3_padding(planes, planes, padding=padding_type) + [norm_layer(planes)]
+        except Exception as e:
+            print(e)
+            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
+
+        # deblurgan 原始3x3 Conv
+        self.pre_conv_block = nn.Sequential(*pre_blocks)
+        self.post_conv_block = nn.Sequential(*post_blocks)
+
+    def forward(self, ipt):
+        x = self.pre_conv_block(ipt)
+        xs = torch.chunk(x, self.scale, 1)
+        ys = []
+        for s in range(self.scale):
+            if s == 0:
+                ys.append(xs[s])
+            elif s == 1:
+                ys.append(self.res2net_conv_blocks[xs[s]])
+            else:
+                ys.append(self.res2net_conv_blocks[xs[s] + ys[-1]])
+        y = torch.cat(ys, 1)
+        y = self.post_conv_block(y)
+        y += ipt
+        return y
+
+    def get_sub_convs(self, ch_per_sub, norm_layer, stride, groups, use_bias ,padding):
+        layers = []
+        for _ in range(1, self.scale):
+            layers.append(nn.Sequential(
+                nn.Sequential(*conv3x3_padding(ch_per_sub, ch_per_sub, stride, groups, use_bias, padding)),
+                norm_layer(ch_per_sub), self.relu))
+
+        return nn.Sequential(*layers)
+
+
+def conv3x3_padding(in_planes, out_planes, stride=1, groups=1, use_bias=False, padding=None):
+    """3x3 convolution with padding"""
+    padAndConv = {
+        'reflect': [
+            nn.ReflectionPad2d(1),
+            nn.Conv2d(in_planes, out_planes, kernel_size=3, bias=use_bias, stride=stride, groups=groups)],
+        'replicate': [
+            nn.ReplicationPad2d(1),
+            nn.Conv2d(in_planes, out_planes, kernel_size=3, bias=use_bias, stride=stride, groups=groups)],
+        'zero': [
+            nn.Conv2d(in_planes, out_planes, kernel_size=3, padding=1, bias=use_bias, stride=stride, groups=groups)]
+    }
+    return padAndConv[padding]
 
 
 # Defines the Unet generator.

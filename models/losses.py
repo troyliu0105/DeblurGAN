@@ -24,9 +24,9 @@ class PerceptualLoss():
 	def contentFunc(self):
 		conv_3_3_layer = 14
 		cnn = models.vgg19(pretrained=True).features
-		cnn = cnn.cuda()
+		cnn = cnn.cuda() if torch.cuda.is_available() else cnn
 		model = nn.Sequential()
-		model = model.cuda()
+		model = model.cuda() if torch.cuda.is_available() else model
 		for i,layer in enumerate(list(cnn)):
 			model.add_module(str(i),layer)
 			if i == conv_3_3_layer:
@@ -114,7 +114,7 @@ class DiscLossLS(DiscLoss):
 		return 'DiscLossLS'
 
 	def __init__(self, opt, tensor):
-		super(DiscLoss, self).__init__(opt, tensor)
+		super(DiscLossLS, self).__init__(opt, tensor)
 		# DiscLoss.initialize(self, opt, tensor)
 		self.criterionGAN = GANLoss(use_l1=True, tensor=tensor)
 		
@@ -141,17 +141,19 @@ class DiscLossWGANGP(DiscLossLS):
 	def calc_gradient_penalty(self, netD, real_data, fake_data):
 		alpha = torch.rand(1, 1)
 		alpha = alpha.expand(real_data.size())
-		alpha = alpha.cuda()
+		alpha = alpha.cuda() if torch.cuda.is_available() else alpha
 
 		interpolates = alpha * real_data + ((1 - alpha) * fake_data)
 
-		interpolates = interpolates.cuda()
+		interpolates = interpolates.cuda() if torch.cuda.is_available() else interpolates
 		interpolates = Variable(interpolates, requires_grad=True)
 		
 		disc_interpolates = netD.forward(interpolates)
 
+		ones = torch.ones(disc_interpolates.size())
+		ones = ones.cuda() if torch.cuda.is_available() else ones
 		gradients = autograd.grad(
-			outputs=disc_interpolates, inputs=interpolates, grad_outputs=torch.ones(disc_interpolates.size()).cuda(),
+			outputs=disc_interpolates, inputs=interpolates, grad_outputs=ones,
 			create_graph=True, retain_graph=True, only_inputs=True
 		)[0]
 
