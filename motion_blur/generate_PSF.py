@@ -1,6 +1,6 @@
-import numpy as np
-from math import ceil
 import matplotlib.pyplot as plt
+import numpy as np
+
 from motion_blur.generate_trajectory import Trajectory
 
 
@@ -15,7 +15,7 @@ class PSF(object):
         else:
             self.trajectory = trajectory.x
         if fraction is None:
-            self.fraction = [1/100, 1/10, 1/2, 1]
+            self.fraction = [1 / 100, 1 / 10, 1 / 2, 1]
         else:
             self.fraction = fraction
         self.path_to_save = path_to_save

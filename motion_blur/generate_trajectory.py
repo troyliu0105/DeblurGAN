@@ -1,6 +1,7 @@
-import numpy as np
-import matplotlib.pyplot as plt
 from math import ceil
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 class Trajectory(object):
@@ -75,8 +76,8 @@ class Trajectory(object):
                 next_direction = 0
 
             dv = next_direction + self.expl * (
-                gaussian_shake * complex(real=np.random.randn(), imag=np.random.randn()) - centripetal * x[t]) * (
-                                      self.max_len / (self.iters - 1))
+                    gaussian_shake * complex(real=np.random.randn(), imag=np.random.randn()) - centripetal * x[t]) * (
+                         self.max_len / (self.iters - 1))
 
             v += dv
             v = (v / float(np.abs(v))) * (self.max_len / float((self.iters - 1)))

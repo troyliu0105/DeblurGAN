@@ -1,4 +1,5 @@
 import torch.utils.data
+
 from data.base_data_loader import BaseDataLoader
 
 
@@ -28,7 +29,7 @@ class CustomDatasetDataLoader(BaseDataLoader):
         return 'CustomDatasetDataLoader'
 
     def __init__(self, opt):
-        super(CustomDatasetDataLoader,self).initialize(opt)
+        super(CustomDatasetDataLoader, self).initialize(opt)
         print("Opt.nThreads = ", opt.nThreads)
         self.dataset = CreateDataset(opt)
         self.dataloader = torch.utils.data.DataLoader(

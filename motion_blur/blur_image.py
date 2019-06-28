@@ -1,9 +1,11 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import cv2
 import os
-from scipy import signal
+
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 from scipy import misc
+from scipy import signal
+
 from motion_blur.generate_PSF import PSF
 from motion_blur.generate_trajectory import Trajectory
 
@@ -50,7 +52,7 @@ class BlurImage(object):
         key, kex = self.PSFs[0].shape
         delta = yN - key
         assert delta >= 0, 'resolution of image should be higher than kernel'
-        result=[]
+        result = []
         if len(psf) > 1:
             for p in psf:
                 tmp = np.pad(p, delta // 2, 'constant')
@@ -89,7 +91,7 @@ class BlurImage(object):
             fig, axes = plt.subplots(1, len(self.result), figsize=(10, 10))
             if len(self.result) > 1:
                 for i in range(len(self.result)):
-                        axes[i].imshow(self.result[i])
+                    axes[i].imshow(self.result[i])
             else:
                 plt.axis('off')
 
@@ -116,5 +118,5 @@ if __name__ == '__main__':
         trajectory = Trajectory(canvas=64, max_len=60, expl=np.random.choice(params)).fit()
         psf = PSF(canvas=64, trajectory=trajectory).fit()
         BlurImage(os.path.join(folder, path), PSFs=psf,
-                  path__to_save=folder_to_save, part=np.random.choice([1, 2, 3])).\
+                  path__to_save=folder_to_save, part=np.random.choice([1, 2, 3])). \
             blur_image(save=True)

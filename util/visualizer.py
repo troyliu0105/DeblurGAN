@@ -1,9 +1,12 @@
-import numpy as np
-import os
 import ntpath
+import os
 import time
-from . import util
+
+import numpy as np
+
 from . import html
+from . import util
+
 
 class Visualizer():
     def __init__(self, opt):
@@ -14,7 +17,7 @@ class Visualizer():
         self.name = opt.name
         if self.display_id > 0:
             import visdom
-            self.vis = visdom.Visdom(port = opt.display_port)
+            self.vis = visdom.Visdom(port=opt.display_port)
             self.display_single_pane_ncols = opt.display_single_pane_ncols
 
         if self.use_html:
@@ -29,7 +32,7 @@ class Visualizer():
 
     # |visuals|: dictionary of images to display or save
     def display_current_results(self, visuals, epoch):
-        if self.display_id > 0: # show images in the browser
+        if self.display_id > 0:  # show images in the browser
             if self.display_single_pane_ncols > 0:
                 h, w = next(iter(visuals.values())).shape[:2]
                 table_css = """<style>
@@ -50,7 +53,7 @@ class Visualizer():
                     if idx % ncols == 0:
                         label_html += '<tr>%s</tr>' % label_html_row
                         label_html_row = ''
-                white_image = np.ones_like(image_numpy.transpose([2, 0, 1]))*255
+                white_image = np.ones_like(image_numpy.transpose([2, 0, 1])) * 255
                 while idx % ncols != 0:
                     images.append(white_image)
                     label_html_row += '<td></td>'
@@ -61,17 +64,17 @@ class Visualizer():
                 self.vis.images(images, nrow=ncols, win=self.display_id + 1,
                                 padding=2, opts=dict(title=title + ' images'))
                 label_html = '<table>%s</table>' % label_html
-                self.vis.text(table_css + label_html, win = self.display_id + 2,
+                self.vis.text(table_css + label_html, win=self.display_id + 2,
                               opts=dict(title=title + ' labels'))
             else:
                 idx = 1
                 for label, image_numpy in visuals.items():
-                    #image_numpy = np.flipud(image_numpy)
-                    self.vis.image(image_numpy.transpose([2,0,1]), opts=dict(title=label),
-                                       win=self.display_id + idx)
+                    # image_numpy = np.flipud(image_numpy)
+                    self.vis.image(image_numpy.transpose([2, 0, 1]), opts=dict(title=label),
+                                   win=self.display_id + idx)
                     idx += 1
 
-        if self.use_html: # save images to a html file
+        if self.use_html:  # save images to a html file
             for label, image_numpy in visuals.items():
                 img_path = os.path.join(self.img_dir, 'epoch%.3d_%s.png' % (epoch, label))
                 util.save_image(image_numpy, img_path)
@@ -94,11 +97,11 @@ class Visualizer():
     # errors: dictionary of error labels and values
     def plot_current_errors(self, epoch, counter_ratio, opt, errors):
         if not hasattr(self, 'plot_data'):
-            self.plot_data = {'X':[],'Y':[], 'legend':list(errors.keys())}
+            self.plot_data = {'X': [], 'Y': [], 'legend': list(errors.keys())}
         self.plot_data['X'].append(epoch + counter_ratio)
         self.plot_data['Y'].append([errors[k] for k in self.plot_data['legend']])
         self.vis.line(
-            X=np.stack([np.array(self.plot_data['X'])]*len(self.plot_data['legend']),1),
+            X=np.stack([np.array(self.plot_data['X'])] * len(self.plot_data['legend']), 1),
             Y=np.array(self.plot_data['Y']),
             opts={
                 'title': self.name + ' loss over time',

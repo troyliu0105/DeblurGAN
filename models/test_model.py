@@ -1,8 +1,10 @@
-from torch.autograd import Variable
 from collections import OrderedDict
+
+from torch.autograd import Variable
+
 import util.util as util
-from .base_model import BaseModel
 from . import networks
+from .base_model import BaseModel
 
 
 class TestModel(BaseModel):
@@ -10,7 +12,7 @@ class TestModel(BaseModel):
         return 'TestModel'
 
     def __init__(self, opt):
-        assert(not opt.isTrain)
+        assert (not opt.isTrain)
         super(TestModel, self).__init__(opt)
         self.input_A = self.Tensor(opt.batchSize, opt.input_nc, opt.fineSize, opt.fineSize)
 
