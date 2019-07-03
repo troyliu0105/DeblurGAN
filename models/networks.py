@@ -420,7 +420,7 @@ class Res2NetBlock(nn.Module):
                 nn.Sequential(*conv3x3_padding(ch_per_sub, ch_per_sub, stride, groups, use_bias, padding)),
                 norm_layer(ch_per_sub), self.relu))
 
-        return layers
+        return nn.Sequential(*layers)
 
 
 def conv3x3_padding(in_planes, out_planes, stride=1, groups=1, use_bias=False, padding=None):
