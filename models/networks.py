@@ -335,7 +335,7 @@ class Res2netGenerator(nn.Module):
         for i in range(n_blocks):
             model += [
                 Res2NetBlock(256, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout,
-                             use_bias=use_bias, scale=1)
+                             use_bias=use_bias, scale=4)
             ]
         model += [
             nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, padding=1, output_padding=1, bias=use_bias),
@@ -405,9 +405,9 @@ class Res2NetBlock(nn.Module):
             if s == 0:
                 ys.append(xs[s])
             elif s == 1:
-                ys.append(self.res2net_conv_blocks[xs[s]])
+                ys.append(self.res2net_conv_blocks[s - 1](xs[s]))
             else:
-                ys.append(self.res2net_conv_blocks[xs[s] + ys[-1]])
+                ys.append(self.res2net_conv_blocks[s - 1](xs[s] + ys[-1]))
         y = torch.cat(ys, 1)
         y = self.post_conv_block(y)
         y += ipt
@@ -420,7 +420,7 @@ class Res2NetBlock(nn.Module):
                 nn.Sequential(*conv3x3_padding(ch_per_sub, ch_per_sub, stride, groups, use_bias, padding)),
                 norm_layer(ch_per_sub), self.relu))
 
-        return nn.Sequential(*layers)
+        return layers
 
 
 def conv3x3_padding(in_planes, out_planes, stride=1, groups=1, use_bias=False, padding=None):
