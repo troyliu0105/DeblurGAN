@@ -408,8 +408,9 @@ class Res2NetBlock(nn.Module):
         # res2net
         blocks = [Res2NetBasic(planes, planes, stride, norm_layer, groups, scale, padding_type, use_bias)] + [
             norm_layer(planes), nn.ReLU(True)
-        ] + [nn.Dropout(0.5)] if use_dropout else [] + [
-            Res2NetBasic(planes, planes, stride, groups, scale, padding_type, use_bias)] + [norm_layer(planes)]
+        ] + [nn.Dropout(0.5)] if use_dropout else []
+        blocks += [Res2NetBasic(planes, planes, stride, norm_layer, groups, scale, padding_type, use_bias)] + [
+            norm_layer(planes)]
         self.conv_block = nn.Sequential(*blocks)
 
     def forward(self, x):
