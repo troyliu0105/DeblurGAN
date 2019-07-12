@@ -366,61 +366,55 @@ class Res2netGenerator(nn.Module):
         return output
 
 
-class Res2NetBlock(nn.Module):
-    def __init__(self, planes, use_dropout, use_bias, scale=1, stride=1, groups=1, norm_layer=None, padding_type=None):
-        super(Res2NetBlock, self).__init__()
-
-        self.use_bias = use_bias
-        self.use_dropout = use_dropout
-        self.padding_type = padding_type
-        self.relu = nn.ReLU(True)
-        if norm_layer is None:
-            norm_layer = nn.BatchNorm2d
-
+class Res2NetBasic(nn.Module):
+    def __init__(self, in_planes, out_planes, stride, norm_layer, groups=1, scale=1, padding_type=None, use_bias=False):
+        super(Res2NetBasic, self).__init__()
         self.scale = scale
-        ch_per_sub = planes // self.scale
-        ch_res = planes % self.scale
-
-        # res2net
-        self.chunks = [ch_per_sub * i + ch_res for i in range(1, scale + 1)]
-        self.res2net_conv_blocks = self.get_sub_convs(ch_per_sub, norm_layer, stride, groups, use_bias, padding_type)
-
-        try:
-            pre_blocks = conv3x3_padding(planes, planes, padding=padding_type) + [norm_layer(planes), nn.ReLU(True)] \
-                         + [nn.Dropout(0.5)] if use_dropout else []
-            post_blocks = conv3x3_padding(planes, planes, padding=padding_type) + [norm_layer(planes)]
-        except Exception as e:
-            print(e)
-            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
-
-        # deblurgan 原始3x3 Conv
-        self.pre_conv_block = nn.Sequential(*pre_blocks)
-        self.post_conv_block = nn.Sequential(*post_blocks)
+        ch_per_sub = in_planes // self.scale
+        out_per_sub = out_planes // self.scale
+        self.relu = nn.ReLU(True)
+        self.blocks = nn.Sequential(
+            *self.get_sub_convs(ch_per_sub, out_per_sub, norm_layer, stride, groups, use_bias, padding_type))
 
     def forward(self, ipt):
-        x = self.pre_conv_block(ipt)
-        xs = torch.chunk(x, self.scale, 1)
+        xs = torch.chunk(ipt, self.scale, 1)
         ys = []
         for s in range(self.scale):
             if s == 0:
                 ys.append(xs[s])
             elif s == 1:
-                ys.append(self.res2net_conv_blocks[s - 1](xs[s]))
+                ys.append(self.blocks[s - 1](xs[s]))
             else:
-                ys.append(self.res2net_conv_blocks[s - 1](xs[s] + ys[-1]))
+                ys.append(self.blocks[s - 1](xs[s] + ys[-1]))
         y = torch.cat(ys, 1)
-        y = self.post_conv_block(y)
-        y += ipt
         return y
 
-    def get_sub_convs(self, ch_per_sub, norm_layer, stride, groups, use_bias, padding):
+    def get_sub_convs(self, ch_per_sub, out_per_sub, norm_layer, stride, groups, use_bias, padding):
         layers = []
         for _ in range(1, self.scale):
             layers.append(nn.Sequential(
-                nn.Sequential(*conv3x3_padding(ch_per_sub, ch_per_sub, stride, groups, use_bias, padding)),
-                norm_layer(ch_per_sub), self.relu))
+                nn.Sequential(*conv3x3_padding(ch_per_sub, out_per_sub, stride, groups, use_bias, padding)),
+                norm_layer(out_per_sub), self.relu))
 
         return layers
+
+
+class Res2NetBlock(nn.Module):
+    def __init__(self, planes, use_dropout, use_bias, scale=1, stride=1, groups=1, norm_layer=None, padding_type=None):
+        super(Res2NetBlock, self).__init__()
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+
+        # res2net
+        blocks = [Res2NetBasic(planes, planes, stride, norm_layer, groups, scale, padding_type, use_bias)] + [
+            norm_layer(planes), nn.ReLU(True)
+        ] + [nn.Dropout(0.5)] if use_dropout else [] + [
+            Res2NetBasic(planes, planes, stride, groups, scale, padding_type, use_bias)] + [norm_layer(planes)]
+        self.conv_block = nn.Sequential(*blocks)
+
+    def forward(self, x):
+        out = x + self.conv_block(x)
+        return out
 
 
 def conv3x3_padding(in_planes, out_planes, stride=1, groups=1, use_bias=False, padding=None):
