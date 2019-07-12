@@ -6,6 +6,8 @@ from models.models import create_model
 from options.train_options import TrainOptions
 from util.metrics import PSNR
 from util.visualizer import Visualizer
+from PIL import Image
+from ssim import compute_ssim
 
 
 def train(opt, data_loader, model, visualizer):
@@ -26,7 +28,9 @@ def train(opt, data_loader, model, visualizer):
             if total_steps % opt.display_freq == 0:
                 results = model.get_current_visuals()
                 psnrMetric = PSNR(results['Restored_Train'], results['Sharp_Train'])
-                print('PSNR on Train = %f' % psnrMetric)
+                ssimMetric = compute_ssim(Image.fromarray(results['Restored_Train']),
+                                          Image.fromarray(results['Sharp_Train']))
+                print('PSNR on Train = %f, SSIM on Train = %f' % (psnrMetric, ssimMetric))
                 visualizer.display_current_results(results, epoch)
 
             if total_steps % opt.print_freq == 0:
