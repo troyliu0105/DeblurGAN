@@ -15,6 +15,7 @@ class AlignedDataset(BaseDataset):
         self.opt = opt
         self.root = opt.dataroot
         self.dir_AB = os.path.join(opt.dataroot, opt.phase)
+        self.phase = opt.phase
 
         self.AB_paths = sorted(make_dataset(self.dir_AB))
 
@@ -35,13 +36,17 @@ class AlignedDataset(BaseDataset):
         w_total = AB.size(2)
         w = int(w_total / 2)
         h = AB.size(1)
-        w_offset = random.randint(0, max(0, w - self.opt.fineSize - 1))
-        h_offset = random.randint(0, max(0, h - self.opt.fineSize - 1))
+        if self.phase in ('train', 'val'):
+            w_offset = random.randint(0, max(0, w - self.opt.fineSize - 1))
+            h_offset = random.randint(0, max(0, h - self.opt.fineSize - 1))
 
-        A = AB[:, h_offset:h_offset + self.opt.fineSize,
-            w_offset:w_offset + self.opt.fineSize]
-        B = AB[:, h_offset:h_offset + self.opt.fineSize,
-            w + w_offset:w + w_offset + self.opt.fineSize]
+            A = AB[:, h_offset:h_offset + self.opt.fineSize,
+                w_offset:w_offset + self.opt.fineSize]
+            B = AB[:, h_offset:h_offset + self.opt.fineSize,
+                w + w_offset:w + w_offset + self.opt.fineSize]
+        else:
+            A = AB[:, :, :w]
+            B = AB[:, :, w:]
 
         if (not self.opt.no_flip) and random.random() < 0.5:
             idx = [i for i in range(A.size(2) - 1, -1, -1)]

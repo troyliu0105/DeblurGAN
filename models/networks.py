@@ -338,11 +338,11 @@ class Res2netGenerator(nn.Module):
                              use_bias=use_bias, scale=4)
             ]
         model += [
-            nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, padding=1, output_padding=1, bias=use_bias),
+            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1, output_padding=0, bias=use_bias),
             norm_layer(128),
             nn.ReLU(True),
 
-            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1, bias=use_bias),
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1, output_padding=0, bias=use_bias),
             norm_layer(64),
             nn.ReLU(True),
         ]
